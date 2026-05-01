@@ -24,30 +24,7 @@ void Sinks::RefreshBlockedStagger(RE::Actor* actor) {
 			return;
 		}
 	}
-
-	// Cria uma nova thread para gerenciar a extensão dessa imunidade
-	std::thread([actorFormID, now, immunityTimeMs]() {
-		std::this_thread::sleep_for(std::chrono::milliseconds(immunityTimeMs));
-
-		SKSE::GetTaskInterface()->AddTask([actorFormID, now]() {
-			std::lock_guard<std::mutex> lock(g_staggerTrackerMutex);
-			auto it = g_staggerTracker.find(actorFormID);
-			if (it != g_staggerTracker.end()) {
-				auto& tracker = it->second;
-				// Se o lastStaggerTime for igual, significa que ele não tomou outro hit nesse meio tempo
-				if (tracker.lastStaggerTime == now) {
-					tracker.count = 0;
-					if (tracker.isImmune) {
-						tracker.isImmune = false;
-						auto targetActor = RE::TESForm::LookupByID<RE::Actor>(actorFormID);
-						if (targetActor) {
-							targetActor->SetGraphVariableBool("hasStaggerImunityCMF", false);
-						}
-					}
-				}
-			}
-			});
-		}).detach();
+	
 }
 
 void Sinks::ScheduleSinkRegistration(RE::Actor* actor, int attempts)
@@ -168,6 +145,27 @@ RE::BSEventNotifyControl Sinks::NpcCycleSink::ProcessEvent(const RE::BSAnimation
 			// Dispara o evento de quebra apenas na primeira vez que entra na imunidade
 			if (sendBreakEvent) {
 				npc->NotifyAnimationGraph("BreakStaggerCMF");
+				RE::FormID actorFormID = actor->GetFormID();
+				auto now = std::chrono::steady_clock::now();
+				int immunityTimeMs = isPlayer ? StaggerBreakSettings::playerImmunityTimeMs : StaggerBreakSettings::npcImmunityTimeMs;
+
+				std::thread([actorFormID, now, immunityTimeMs]() {
+					std::this_thread::sleep_for(std::chrono::milliseconds(immunityTimeMs));
+
+					SKSE::GetTaskInterface()->AddTask([actorFormID, now]() {
+						std::lock_guard<std::mutex> lock(g_staggerTrackerMutex);
+						auto it = g_staggerTracker.find(actorFormID);
+						if (it != g_staggerTracker.end()) {
+							auto& tracker = it->second;
+							tracker.count = 0;
+							auto targetActor = RE::TESForm::LookupByID<RE::Actor>(actorFormID);
+							tracker.isImmune = false;
+							if (targetActor) {
+								targetActor->SetGraphVariableBool("hasStaggerImunityCMF", false);
+							}
+						}
+						});
+					}).detach();
 			}
 
 			std::thread([actorFormID, now, resetTimeMs]() {
@@ -182,7 +180,6 @@ RE::BSEventNotifyControl Sinks::NpcCycleSink::ProcessEvent(const RE::BSAnimation
 					auto it = g_staggerTracker.find(actorFormID);
 					if (it != g_staggerTracker.end()) {
 						auto& tracker = it->second;
-
 						if (tracker.lastStaggerTime == now) {
 							tracker.count = 0;
 							if (tracker.isImmune) {
@@ -210,6 +207,9 @@ RE::BSEventNotifyControl Sinks::NpcCycleSink::ProcessEvent(const RE::BSAnimation
 					});
 				}).detach();
 		}
+	}
+	else if (eventName == "BreakStaggerCMF") {
+		actor->SetGraphVariableBool("hasStaggerImunityCMF", true);
 	}
 
 	return RE::BSEventNotifyControl::kContinue;

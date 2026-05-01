@@ -9,10 +9,6 @@ public:
 	static void Install()
 	{
 		SKSE::log::info("Instalando Stagger Hooks...");
-		SKSE::AllocTrampoline(64);
-		// 1. Hook para StaggerEffect (Magias e Shouts)
-		REL::Relocation<std::uintptr_t> staggerEffectVtbl{ RE::VTABLE_StaggerEffect[0] };
-		_StaggerEffect_Start = staggerEffectVtbl.write_vfunc(0x14, Hook_StaggerEffect_Start);
 
 		// 2. Hooks para NotifyAnimationGraph
 		// Hook para Objetos Animados (Móveis, Portas, etc)
@@ -31,27 +27,6 @@ public:
 	}
 
 private:
-	// --- Hook 1: Magias e Shouts ---
-	static void Hook_StaggerEffect_Start(RE::StaggerEffect* a_this)
-	{
-		if (a_this) {
-			auto* targetActor = a_this->GetTargetActor();
-			if (targetActor) {
-				bool hasImunity = false;
-				targetActor->GetGraphVariableBool("hasStaggerImunityCMF", hasImunity);
-
-				// Se estiver imune, aborta o efeito completamente
-				if (hasImunity) {
-					Sinks::RefreshBlockedStagger(targetActor);
-					a_this->Dispel(true); // Cancela o efeito ativo
-					return;               // Não chama a função original
-				}
-			}
-		}
-
-		// Se não for imune, segue o jogo normal
-		_StaggerEffect_Start(a_this);
-	}
 
 	// --- Hooks 2: Eventos de Animação (Melee, Bashes, etc) ---
 
@@ -99,7 +74,6 @@ private:
 	}
 
 	// Ponteiros para as funções originais
-	static inline REL::Relocation<decltype(&Hook_StaggerEffect_Start)> _StaggerEffect_Start;
 	static inline REL::Relocation<decltype(&NotifyAnimationGraph_REFR)> _NotifyAnimationGraph_REFR;
 	static inline REL::Relocation<decltype(&NotifyAnimationGraph_Char)> _NotifyAnimationGraph_Char;
 	static inline REL::Relocation<decltype(&NotifyAnimationGraph_Player)> _NotifyAnimationGraph_Player;
