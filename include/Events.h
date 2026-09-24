@@ -1,18 +1,32 @@
 ﻿#pragma once
+#include <cstdint>
 #include <shared_mutex>
 
 struct StaggerData {
 	int count = 0;
 	std::chrono::time_point<std::chrono::steady_clock> lastStaggerTime;
 	bool isImmune = false;
+	std::uint64_t immunityGeneration = 0;
+	double lastBreakRealTimeSeconds = -1.0;
+	double lastBreakGameTimeSeconds = -1.0;
 };
 
 // Variáveis globais para rastreamento
 static std::unordered_map<RE::FormID, StaggerData> g_staggerTracker;
 static std::mutex g_staggerTrackerMutex;
 
+namespace StaggerBreakSerialization
+{
+	constexpr std::uint32_t kSerializationID = 'BSG1';
+
+	void Save(SKSE::SerializationInterface* serialization);
+	void Load(SKSE::SerializationInterface* serialization);
+	void Revert(SKSE::SerializationInterface* serialization);
+}
+
 namespace Sinks
 {
+	void HandleStaggerStart(RE::Actor* actor, bool fromNativeEvent);
 	void RefreshBlockedStagger(RE::Actor* actor);
 	void ScheduleSinkRegistration(RE::Actor* actor, int attempts);
 	class NpcCycleSink : public RE::BSTEventSink<RE::BSAnimationGraphEvent> {

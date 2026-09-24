@@ -33,19 +33,36 @@ private:
 	static bool NotifyAnimationGraph_REFR(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName)
 	{
 		if (ShouldBlockStagger(a_this, a_eventName)) return false;
-		return _NotifyAnimationGraph_REFR(a_this, a_eventName);
+		const bool sent = _NotifyAnimationGraph_REFR(a_this, a_eventName);
+		if (a_eventName == "staggerStart") HandleNativeStagger(a_this);
+		return sent;
 	}
 
 	static bool NotifyAnimationGraph_Char(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName)
 	{
 		if (ShouldBlockStagger(a_this, a_eventName)) return false;
-		return _NotifyAnimationGraph_Char(a_this, a_eventName);
+		const bool sent = _NotifyAnimationGraph_Char(a_this, a_eventName);
+		if (a_eventName == "staggerStart") HandleNativeStagger(a_this);
+		return sent;
 	}
 
 	static bool NotifyAnimationGraph_Player(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName)
 	{
 		if (ShouldBlockStagger(a_this, a_eventName)) return false;
-		return _NotifyAnimationGraph_Player(a_this, a_eventName);
+		const bool sent = _NotifyAnimationGraph_Player(a_this, a_eventName);
+		if (a_eventName == "staggerStart") HandleNativeStagger(a_this);
+		return sent;
+	}
+
+	static void HandleNativeStagger(RE::IAnimationGraphManagerHolder* a_this)
+	{
+		auto* refr = skyrim_cast<RE::TESObjectREFR*>(a_this);
+		auto* actor = refr ? refr->As<RE::Actor>() : nullptr;
+		if (actor) {
+			Sinks::HandleStaggerStart(actor, true);
+		} else {
+			SKSE::log::warn("[BreakStagger][Stagger] Native staggerStart had no actor; cannot count it.");
+		}
 	}
 
 	// Lógica central para decidir se o stagger deve ser bloqueado
